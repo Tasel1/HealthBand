@@ -4,24 +4,78 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 font-sans;
+    @apply bg-slate-950 text-slate-100 font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-200;
+  }
+
+  /* Accessible high-contrast focus indicators */
+  :focus-visible {
+    outline: 2px solid #06b6d4;
+    outline-offset: 1px;
   }
 }
 
+/* Clinical Workstation Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #090d16;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 9999px;
+  background: #1e293b;
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #334155;
+}
+
+/* Precision tabular numerals for medical metrics & telemetry streams */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Clean clinical document print styling */
+@media print {
+  @page {
+    margin: 12mm 15mm;
+    size: A4 portrait;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:block {
+    display: block !important;
+  }
+
+  .print\:bg-white {
+    background: #ffffff !important;
+  }
+
+  .print\:text-black {
+    color: #000000 !important;
+  }
+
+  .print\:text-slate-700 {
+    color: #334155 !important;
+  }
+
+  .print\:border-slate-300 {
+    border-color: #cbd5e1 !important;
+  }
+
+  .print\:border-black {
+    border-color: #000000 !important;
+  }
 }
