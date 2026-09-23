@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -7,13 +7,21 @@ import {
   Droplets,
   Heart,
   ChevronRight,
-  Wifi,
   Search,
   Check,
   X,
-  ArrowUpRight,
   ShieldAlert,
-  Battery
+  Battery,
+  Flame,
+  Radio,
+  Printer,
+  Sparkles,
+  ArrowUpRight,
+  TrendingUp,
+  Activity,
+  Calendar,
+  Layers,
+  Cpu
 } from 'lucide-react';
 import { useHealthBand } from '../context/HealthBandContext.jsx';
 import { audioService } from '../services/audioService.js';
@@ -26,7 +34,7 @@ const BANDAGE_AGE_MAP = {
   'hb-04': '42 ч'
 };
 
-export default function WardView({ onSelectPatient }) {
+export default function WardView({ onSelectPatient, onNavigateToReport }) {
   const {
     patients,
     alertCount,
@@ -34,44 +42,38 @@ export default function WardView({ onSelectPatient }) {
     normalCount,
     selectedPatientId,
     setSelectedPatientId,
-    mode
+    activePatient,
+    historySeries,
+    mode,
+    liveState,
+    syncNow
   } = useHealthBand();
 
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [triageNotice, setTriageNotice] = useState(null);
+  const [hoveredDataPoint, setHoveredDataPoint] = useState(null);
 
-  // Active patient for instantaneous detail preview drawer
-  const activeDetailPatient =
-    patients.find((p) => p.id === selectedPatientId) || patients[0];
-
-  const filteredPatients = patients.filter((p) => {
-    const matchesFilter =
-      filter === 'all'
-        ? true
-        : filter === 'alert'
-        ? p.status === 'alert'
-        : filter === 'warning'
-        ? p.status === 'warning'
-        : p.status === 'normal';
-    const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.ward.toLowerCase().includes(search.toLowerCase()) ||
-      p.sensorId.toLowerCase().includes(search.toLowerCase()) ||
-      p.diagnosis.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
-
-  const handleRowClick = (patientId) => {
-    setSelectedPatientId(patientId);
-  };
-
-  const handleOpenTelemetry = (patientId) => {
-    setSelectedPatientId(patientId);
-    if (onSelectPatient) {
-      onSelectPatient(patientId);
-    }
-  };
+  // Filter patients list
+  const filteredPatients = useMemo(() => {
+    return patients.filter((p) => {
+      const matchesFilter =
+        filter === 'all'
+          ? true
+          : filter === 'alert'
+          ? p.status === 'alert'
+          : filter === 'warning'
+          ? p.status === 'warning'
+          : p.status === 'normal';
+      const q = search.toLowerCase();
+      const matchesSearch =
+        p.name.toLowerCase().includes(q) ||
+        p.ward.toLowerCase().includes(q) ||
+        p.sensorId.toLowerCase().includes(q) ||
+        p.diagnosis.toLowerCase().includes(q);
+      return matchesFilter && matchesSearch;
+    });
+  }, [patients, filter, search]);
 
   const handleAcceptAlarm = (patientName) => {
     audioService.unlock();
@@ -80,7 +82,7 @@ export default function WardView({ onSelectPatient }) {
       type: 'accept',
       text: `Вызов по койке ${patientName} принят дежурной медсестрой. Оповещение переведено в режим обработки.`
     });
-    setTimeout(() => setTriageNotice(null), 6000);
+    setTimeout(() => setTriageNotice(null), 5000);
   };
 
   const handleChangeBandage = (patientName) => {
@@ -90,490 +92,772 @@ export default function WardView({ onSelectPatient }) {
       type: 'bandage',
       text: `Назначена внеплановая смена повязки для пациента ${patientName}. На пост передан протокол подготовки.`
     });
-    setTimeout(() => setTriageNotice(null), 6000);
+    setTimeout(() => setTriageNotice(null), 5000);
   };
 
-  // Find most critical patient for urgent triage banner
-  const urgentPatient = patients.find((p) => p.status === 'alert');
+  // Apple Health SVG Chart Coordinates & Computations
+  const chartWidth = 660;
+  const chartHeight = 220;
+  const padding = { top: 25, right: 30, bottom: 35, left: 45 };
+  const graphW = chartWidth - padding.left - padding.right;
+  const graphH = chartHeight - padding.top - padding.bottom;
+
+  const minTemp = 35.0;
+  const maxTemp = 40.0;
+  const getTempY = (t) => {
+    const clamped = Math.max(minTemp, Math.min(maxTemp, t));
+    return padding.top + graphH - ((clamped - minTemp) / (maxTemp - minTemp)) * graphH;
+  };
+
+  const count = historySeries.length;
+  const getX = (idx) => {
+    if (count <= 1) return padding.left + graphW / 2;
+    return padding.left + (idx / (count - 1)) * graphW;
+  };
+
+  const woundPoints = historySeries.map((d, i) => `${getX(i)},${getTempY(d.tempWound)}`);
+  const woundPath = woundPoints.length > 0 ? `M ${woundPoints.join(' L ')}` : '';
+
+  // Area under wound curve for Apple Health glow
+  const woundAreaPath =
+    woundPoints.length > 0
+      ? `M ${getX(0)},${chartHeight - padding.bottom} L ${woundPoints.join(
+          ' L '
+        )} L ${getX(count - 1)},${chartHeight - padding.bottom} Z`
+      : '';
+
+  const bodyPoints = historySeries.map((d, i) => `${getX(i)},${getTempY(d.tempBody)}`);
+  const bodyPath = bodyPoints.length > 0 ? `M ${bodyPoints.join(' L ')}` : '';
+
+  const yThresholdAlarm = getTempY(37.5);
+  const yBaselineBody = getTempY(36.6);
+
+  // Handle interactive SVG scrubber hover
+  const handleChartMouseMove = (e) => {
+    const svgRect = e.currentTarget.getBoundingClientRect();
+    const mouseX = e.clientX - svgRect.left;
+    const svgX = (mouseX / svgRect.width) * chartWidth;
+
+    if (svgX < padding.left || svgX > chartWidth - padding.right || count === 0) {
+      return;
+    }
+
+    const ratio = (svgX - padding.left) / graphW;
+    const closestIdx = Math.max(0, Math.min(count - 1, Math.round(ratio * (count - 1))));
+    setHoveredDataPoint({
+      ...historySeries[closestIdx],
+      idx: closestIdx,
+      x: getX(closestIdx),
+      yWound: getTempY(historySeries[closestIdx].tempWound),
+      yBody: getTempY(historySeries[closestIdx].tempBody)
+    });
+  };
+
+  const handleChartMouseLeave = () => {
+    setHoveredDataPoint(null);
+  };
+
+  // Active or hovered data readout
+  const latestPoint = historySeries[historySeries.length - 1] || {
+    time: '22:15',
+    tempWound: activePatient.tempWound,
+    tempBody: activePatient.tempBody,
+    delta: activePatient.tempDiff,
+    humidity: activePatient.humidity,
+    pulse: activePatient.heartRate,
+    note: activePatient.statusText
+  };
+
+  const activeReadout = hoveredDataPoint || {
+    ...latestPoint,
+    idx: count - 1,
+    x: getX(count - 1),
+    yWound: getTempY(latestPoint.tempWound),
+    yBody: getTempY(latestPoint.tempBody)
+  };
+
+  // Mini sparkline for metric cards
+  const miniSparkW = 90;
+  const miniSparkH = 26;
+  const miniSparkPoints = historySeries.map((d, i) => {
+    const x = (i / Math.max(1, count - 1)) * miniSparkW;
+    const y = miniSparkH - ((d.tempWound - minTemp) / (maxTemp - minTemp)) * miniSparkH;
+    return `${x},${Math.max(2, Math.min(miniSparkH - 2, y))}`;
+  });
+  const miniSparkPath = miniSparkPoints.length > 0 ? `M ${miniSparkPoints.join(' L ')}` : '';
+
+  // 3-point cycle steps
+  const p1 = historySeries[Math.max(0, count - 3)] || { time: '21:45', tempWound: 37.4, tempBody: 36.8, delta: 0.6 };
+  const p2 = historySeries[Math.max(0, count - 2)] || { time: '22:00', tempWound: 38.0, tempBody: 36.9, delta: 1.1 };
+  const p3 = historySeries[Math.max(0, count - 1)] || { time: '22:15', tempWound: activePatient.tempWound, tempBody: activePatient.tempBody, delta: activePatient.tempDiff };
 
   return (
-    <div className="space-y-5">
-      {/* Top Clinical Summary Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-3.5">
-          <div className="text-xs text-slate-400 font-medium">Всего коек на посту</div>
-          <div className="text-2xl font-bold text-white mt-1 tabular-nums">
-            {patients.length}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">4 активных сенсорных модуля</div>
-        </div>
-
-        <div className={`rounded-lg p-3.5 border ${
-          alertCount > 0
-            ? 'bg-rose-950/30 border-rose-800/80 text-rose-200'
-            : 'bg-slate-900 border-slate-800 text-slate-400'
-        }`}>
-          <div className="text-xs font-medium flex items-center justify-between">
-            <span>Критические тревоги</span>
-            {alertCount > 0 && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>}
-          </div>
-          <div className={`text-2xl font-bold mt-1 tabular-nums ${alertCount > 0 ? 'text-rose-300' : 'text-white'}`}>
-            {alertCount}
-          </div>
-          <div className="text-[11px] mt-0.5 opacity-80">
-            {alertCount > 0 ? 'Требуется осмотр хирурга' : 'Патологий не выявлено'}
-          </div>
-        </div>
-
-        <div className={`rounded-lg p-3.5 border ${
-          warningCount > 0
-            ? 'bg-amber-950/20 border-amber-800/60 text-amber-200'
-            : 'bg-slate-900 border-slate-800 text-slate-400'
-        }`}>
-          <div className="text-xs font-medium">Повышенное внимание</div>
-          <div className={`text-2xl font-bold mt-1 tabular-nums ${warningCount > 0 ? 'text-amber-300' : 'text-white'}`}>
-            {warningCount}
-          </div>
-          <div className="text-[11px] mt-0.5 opacity-80">Пограничная влажность / субфебрилитет</div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-3.5">
-          <div className="text-xs text-slate-400 font-medium">Стабильное заживление</div>
-          <div className="text-2xl font-bold text-emerald-400 mt-1 tabular-nums">
-            {normalCount}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Температурный гомеостаз в норме</div>
-        </div>
-      </div>
-
-      {/* Urgent Action Bar for Active Alarms */}
-      {urgentPatient && (
-        <div className="bg-rose-950/50 border border-rose-800 rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded bg-rose-900 border border-rose-700 flex items-center justify-center text-rose-200 shrink-0 mt-0.5">
-              <ShieldAlert className="w-5 h-5 text-rose-300" strokeWidth={2} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-rose-200 uppercase tracking-wide">
-                  Неотложный сигнал тревоги: {urgentPatient.ward}, {urgentPatient.bed}
-                </span>
-                <span className="text-xs text-rose-300 font-medium">({urgentPatient.name})</span>
-              </div>
-              <p className="text-xs text-rose-100 mt-0.5 max-w-3xl">
-                {urgentPatient.alertDetails || 'Обнаружен прогрессирующий рост температуры раны и критическое промокание повязки.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center flex-wrap gap-2 shrink-0 self-start md:self-center">
-            <button
-              onClick={() => handleAcceptAlarm(urgentPatient.name)}
-              className="px-3 py-1.5 rounded bg-rose-900/80 hover:bg-rose-800 text-rose-100 text-xs font-medium border border-rose-700 transition-colors flex items-center gap-1.5"
-            >
-              <Check className="w-3.5 h-3.5" strokeWidth={2} />
-              <span>Принять вызов</span>
-            </button>
-            <button
-              onClick={() => handleChangeBandage(urgentPatient.name)}
-              className="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-medium border border-slate-700 transition-colors flex items-center gap-1.5"
-            >
-              <Droplets className="w-3.5 h-3.5 text-teal-400" strokeWidth={2} />
-              <span>Сменить повязку</span>
-            </button>
-            <button
-              onClick={() => handleOpenTelemetry(urgentPatient.id)}
-              className="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition-colors flex items-center gap-1.5"
-            >
-              <span>Телеметрия</span>
-              <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Triage feedback banner if action executed */}
+    <div className="space-y-4">
+      {/* Triage Notice Banner */}
       {triageNotice && (
-        <div className="bg-slate-900 border border-cyan-800/80 text-cyan-200 rounded-lg p-3 text-xs flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <div className="bg-[#11141d] border border-cyan-800/80 text-cyan-200 rounded-lg p-3 text-xs flex items-center justify-between gap-3 animate-fade-in shadow-lg">
+          <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" strokeWidth={2} />
             <span>{triageNotice.text}</span>
           </div>
           <button
             onClick={() => setTriageNotice(null)}
-            className="text-slate-400 hover:text-white p-1"
+            className="text-zinc-400 hover:text-white p-1"
           >
             <X className="w-3.5 h-3.5" strokeWidth={2} />
           </button>
         </div>
       )}
 
-      {/* Search & Filter Strip */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 rounded-lg p-3">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2} />
-          <input
-            type="text"
-            placeholder="Поиск по ФИО, койке, диагнозу..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-md pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
-          />
-        </div>
+      {/* Linear Master-Detail Split Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* Left Pane: Dense Bed List (4 cols on lg) */}
+        <div className="lg:col-span-4 bg-[#0d1017] border border-[#1c212d] rounded-xl overflow-hidden flex flex-col max-h-[calc(100vh-5.5rem)] sticky top-16">
+          {/* Left Pane Header: Search & Filter Tabs */}
+          <div className="p-3 border-b border-[#1c212d] bg-[#090a0f] space-y-2.5">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" strokeWidth={2} />
+              <input
+                type="text"
+                placeholder="Фильтр по койкам, ФИО..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-[#11141d] border border-[#1c212d] rounded-md pl-8 pr-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-cyan-500/80 transition-colors"
+              />
+            </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-              filter === 'all'
-                ? 'bg-slate-800 text-white font-semibold'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Все ({patients.length})
-          </button>
-          <button
-            onClick={() => setFilter('alert')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-              filter === 'alert'
-                ? 'bg-rose-950/80 text-rose-200 border border-rose-800 font-semibold'
-                : 'text-rose-400 hover:text-rose-200'
-            }`}
-          >
-            Тревоги ({alertCount})
-          </button>
-          <button
-            onClick={() => setFilter('warning')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-              filter === 'warning'
-                ? 'bg-amber-950/80 text-amber-200 border border-amber-800 font-semibold'
-                : 'text-amber-400 hover:text-amber-200'
-            }`}
-          >
-            Контроль ({warningCount})
-          </button>
-          <button
-            onClick={() => setFilter('normal')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-              filter === 'normal'
-                ? 'bg-emerald-950/80 text-emerald-200 border border-emerald-800 font-semibold'
-                : 'text-emerald-400 hover:text-emerald-200'
-            }`}
-          >
-            Норма ({normalCount})
-          </button>
-        </div>
-      </div>
-
-      {/* Main Clinical Console: Bed Matrix Master-Detail Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left: Dense Bed Matrix Table (7 cols on lg, 12 on full) */}
-        <div className="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
-            <span className="font-semibold text-slate-200">Матрица коек хирургического отделения</span>
-            <span>Кликните по строке для быстрого анализа</span>
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1 overflow-x-auto text-[11px]">
+              <button
+                onClick={() => setFilter('all')}
+                className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                  filter === 'all'
+                    ? 'bg-zinc-800 text-white font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#161b26]'
+                }`}
+              >
+                Все ({patients.length})
+              </button>
+              <button
+                onClick={() => setFilter('alert')}
+                className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                  filter === 'alert'
+                    ? 'bg-rose-950/80 text-rose-300 border border-rose-800 font-semibold'
+                    : 'text-rose-400 hover:text-rose-300'
+                }`}
+              >
+                Тревоги ({alertCount})
+              </button>
+              <button
+                onClick={() => setFilter('warning')}
+                className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                  filter === 'warning'
+                    ? 'bg-amber-950/80 text-amber-300 border border-amber-800 font-semibold'
+                    : 'text-amber-400 hover:text-amber-300'
+                }`}
+              >
+                Контроль ({warningCount})
+              </button>
+              <button
+                onClick={() => setFilter('normal')}
+                className={`px-2 py-0.5 rounded font-medium transition-colors ${
+                  filter === 'normal'
+                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800 font-semibold'
+                    : 'text-emerald-400 hover:text-emerald-300'
+                }`}
+              >
+                Норма ({normalCount})
+              </button>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left border-collapse">
-              <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 text-[11px] uppercase tracking-wider select-none">
-                <tr>
-                  <th className="py-2.5 px-3">Койка</th>
-                  <th className="py-2.5 px-3">Пациент</th>
-                  <th className="py-2.5 px-3 text-right">Повязка</th>
-                  <th className="py-2.5 px-3 text-right">Т раны</th>
-                  <th className="py-2.5 px-3 text-right">Т тела</th>
-                  <th className="py-2.5 px-3 text-right">ΔT</th>
-                  <th className="py-2.5 px-3 text-right">Влажность</th>
-                  <th className="py-2.5 px-3 text-right">Пульс</th>
-                  <th className="py-2.5 px-3 text-center">Статус</th>
-                  <th className="py-2.5 px-3 text-right">Действие</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {filteredPatients.map((patient) => {
-                  const isSelected = patient.id === selectedPatientId;
-                  const isAlert = patient.status === 'alert';
-                  const isWarning = patient.status === 'warning';
-                  const bandageAge = BANDAGE_AGE_MAP[patient.id] || '12 ч';
+          {/* Dense Bed Cards List */}
+          <div className="overflow-y-auto divide-y divide-[#1c212d]/60 flex-1">
+            {filteredPatients.length === 0 ? (
+              <div className="py-8 text-center text-xs text-zinc-500">
+                Койки не найдены
+              </div>
+            ) : (
+              filteredPatients.map((patient) => {
+                const isSelected = patient.id === selectedPatientId;
+                const isAlert = patient.status === 'alert';
+                const isWarning = patient.status === 'warning';
+                const bandageAge = BANDAGE_AGE_MAP[patient.id] || '12 ч';
 
+                return (
+                  <div
+                    key={patient.id}
+                    onClick={() => setSelectedPatientId(patient.id)}
+                    className={`p-3 cursor-pointer transition-all border-l-2 ${
+                      isSelected
+                        ? 'bg-[#161b26] border-cyan-400'
+                        : 'border-transparent hover:bg-[#11141d] bg-[#0d1017]'
+                    }`}
+                  >
+                    {/* Top row: Bed badge, status dot & sync time */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {/* Micro status indicator */}
+                        <span className="relative flex h-2 w-2 shrink-0">
+                          {isAlert && (
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                          )}
+                          <span
+                            className={`relative inline-flex rounded-full h-2 w-2 ${
+                              isAlert
+                                ? 'bg-rose-500'
+                                : isWarning
+                                ? 'bg-amber-400'
+                                : 'bg-emerald-500'
+                            }`}
+                          ></span>
+                        </span>
+
+                        <span className="font-mono text-xs font-semibold text-zinc-200">
+                          {patient.bed}
+                        </span>
+                        <span className="text-zinc-600 text-xs">•</span>
+                        <span className="text-[11px] text-zinc-400 truncate">
+                          {patient.ward}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 shrink-0">
+                        <Battery className="w-3 h-3 text-zinc-500" strokeWidth={1.5} />
+                        <span>{patient.battery}%</span>
+                      </div>
+                    </div>
+
+                    {/* Patient Name & Diagnosis */}
+                    <div className="mt-1">
+                      <div className="text-xs font-medium text-white truncate">
+                        {patient.name}
+                      </div>
+                      <div className="text-[11px] text-zinc-400 truncate" title={patient.diagnosis}>
+                        {patient.diagnosis}
+                      </div>
+                    </div>
+
+                    {/* Dense Telemetry Metric Chips */}
+                    <div className="mt-2 flex items-center justify-between text-[11px] font-mono pt-1.5 border-t border-[#1c212d]/60">
+                      <span className={`font-semibold ${isAlert ? 'text-rose-400' : 'text-zinc-200'}`}>
+                        {patient.tempWound}°C
+                      </span>
+                      <span className="text-zinc-400">
+                        ΔT {patient.tempDiff > 0 ? `+${patient.tempDiff}` : patient.tempDiff}°
+                      </span>
+                      <span className={patient.humidity >= 80 ? 'text-rose-400 font-semibold' : 'text-teal-400'}>
+                        {patient.humidity}% вл.
+                      </span>
+                      <span className="text-zinc-400">
+                        {patient.heartRate} уд/м
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right Pane: Master Detail & Telemetry Workspace (8 cols on lg) */}
+        <div className="lg:col-span-8 space-y-4">
+          {/* Patient Meta Header Card */}
+          <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c212d]">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-mono font-semibold text-cyan-400 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/40">
+                    {activePatient.sensorId}
+                  </span>
+                  <span className="text-zinc-600">•</span>
+                  <span className="text-xs text-zinc-300">
+                    {activePatient.ward}, {activePatient.bed}
+                  </span>
+                  <span className="text-zinc-600">•</span>
+                  <span className="text-[11px] font-mono text-zinc-500">
+                    Повязка: {BANDAGE_AGE_MAP[activePatient.id] || '18 ч'}
+                  </span>
+                </div>
+                <h1 className="text-lg font-bold text-white mt-1">
+                  {activePatient.name}
+                </h1>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  {activePatient.diagnosis} • {activePatient.age} лет
+                </p>
+              </div>
+
+              {/* Triage Action Buttons */}
+              <div className="flex items-center flex-wrap gap-2 shrink-0">
+                <button
+                  onClick={() => handleAcceptAlarm(activePatient.name)}
+                  className="px-2.5 py-1.5 rounded-md bg-[#161b26] hover:bg-[#1c2230] text-zinc-200 text-xs font-medium border border-[#1c212d] transition-colors flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5 text-cyan-400" strokeWidth={2} />
+                  <span>Принять</span>
+                </button>
+
+                <button
+                  onClick={() => handleChangeBandage(activePatient.name)}
+                  className="px-2.5 py-1.5 rounded-md bg-[#161b26] hover:bg-[#1c2230] text-zinc-200 text-xs font-medium border border-[#1c212d] transition-colors flex items-center gap-1.5"
+                >
+                  <Droplets className="w-3.5 h-3.5 text-teal-400" strokeWidth={2} />
+                  <span>Сменить повязку</span>
+                </button>
+
+                {onNavigateToReport && (
+                  <button
+                    onClick={() => onNavigateToReport(activePatient.id)}
+                    className="px-2.5 py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Printer className="w-3.5 h-3.5" strokeWidth={2} />
+                    <span>Протокол</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Diagnostic Alert Callout if Active */}
+            {activePatient.alertDetails && (
+              <div className="mt-3 p-3 rounded-lg bg-rose-950/40 border border-rose-900/80 text-xs text-rose-200 flex items-start gap-2.5 animate-fade-in">
+                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" strokeWidth={2} />
+                <div>
+                  <div className="font-semibold text-rose-200 flex items-center gap-2">
+                    <span>Критический диагностический сигнал</span>
+                    <span className="font-mono text-[10px] text-rose-300">
+                      (ΔT = +{activePatient.tempDiff}°C)
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-rose-300/90 leading-relaxed text-[11px]">
+                    {activePatient.alertDetails}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 4 Apple Health Style Metric Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Metric 1: Wound Temp */}
+            <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs text-zinc-400">
+                <span>Т раны (ложе)</span>
+                <Thermometer className="w-3.5 h-3.5 text-rose-400" strokeWidth={2} />
+              </div>
+              <div className="flex items-baseline justify-between">
+                <div className="text-2xl font-bold text-white tabular-nums tracking-tight">
+                  {activePatient.tempWound}°<span className="text-sm font-normal text-zinc-400">C</span>
+                </div>
+                {/* Mini SVG Sparkline */}
+                <svg className="w-16 h-6 overflow-visible" viewBox={`0 0 ${miniSparkW} ${miniSparkH}`}>
+                  <path
+                    d={miniSparkPath}
+                    fill="none"
+                    stroke={activePatient.tempWound >= 37.5 ? '#f43f5e' : '#38bdf8'}
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              <div className="text-[10px] font-mono text-zinc-400 flex items-center justify-between pt-1 border-t border-[#1c212d]">
+                <span>Порог 37.5°C</span>
+                <span className={activePatient.tempWound >= 37.5 ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
+                  {activePatient.tempWound >= 37.5 ? 'Превышен' : 'В норме'}
+                </span>
+              </div>
+            </div>
+
+            {/* Metric 2: Delta T */}
+            <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs text-zinc-400">
+                <span>Градиент ΔT</span>
+                <span className="text-[10px] font-mono text-zinc-500">Т_тела {activePatient.tempBody}°</span>
+              </div>
+              <div className="text-2xl font-bold font-mono tabular-nums tracking-tight">
+                <span className={activePatient.tempDiff >= 1.0 ? 'text-rose-400' : 'text-zinc-200'}>
+                  +{activePatient.tempDiff}°<span className="text-sm font-normal text-zinc-400">C</span>
+                </span>
+              </div>
+              <div className="text-[10px] font-mono text-zinc-400 flex items-center justify-between pt-1 border-t border-[#1c212d]">
+                <span>Порог ≥ +1.0°C</span>
+                <span className={activePatient.tempDiff >= 1.0 ? 'text-rose-400 font-bold' : 'text-zinc-400'}>
+                  {activePatient.tempDiff >= 1.0 ? 'Воспаление' : 'Норма'}
+                </span>
+              </div>
+            </div>
+
+            {/* Metric 3: Moisture */}
+            <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs text-zinc-400">
+                <span>Влажность повязки</span>
+                <Droplets className="w-3.5 h-3.5 text-teal-400" strokeWidth={2} />
+              </div>
+              <div className="text-2xl font-bold text-white tabular-nums tracking-tight">
+                <span className={activePatient.humidity >= 80 ? 'text-rose-400' : 'text-teal-300'}>
+                  {activePatient.humidity}%
+                </span>
+              </div>
+              <div className="text-[10px] font-mono text-zinc-400 flex items-center justify-between pt-1 border-t border-[#1c212d]">
+                <span>Порог 80%</span>
+                <span className={activePatient.humidity >= 80 ? 'text-rose-400 font-bold' : 'text-teal-400'}>
+                  {activePatient.humidity >= 80 ? 'Замена' : 'Сухая'}
+                </span>
+              </div>
+            </div>
+
+            {/* Metric 4: Pulse */}
+            <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs text-zinc-400">
+                <span>Пульс пациента</span>
+                <Heart className="w-3.5 h-3.5 text-rose-500" strokeWidth={2} />
+              </div>
+              <div className="text-2xl font-bold text-white tabular-nums tracking-tight">
+                {activePatient.heartRate}{' '}
+                <span className="text-xs font-normal text-zinc-400">уд/м</span>
+              </div>
+              <div className="text-[10px] font-mono text-zinc-400 flex items-center justify-between pt-1 border-t border-[#1c212d]">
+                <span>MAX30102 PPG</span>
+                <span className="text-emerald-400">Ритм norm</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Apple Health Style Interactive SVG Telemetry Chart with Hairline Scrubber */}
+          <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#1c212d]">
+              <div>
+                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-cyan-400" strokeWidth={2} />
+                  <span>Интерактивная термометрическая кривая (Apple Health Scrubber)</span>
+                </h2>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Наведите курсор на график для считывания точных замеров в каждой точке
+                </p>
+              </div>
+
+              {/* Scrubber Real-time Floating / Fixed Readout Badge */}
+              <div className="flex items-center gap-2 text-xs bg-[#090a0f] px-3 py-1.5 rounded-lg border border-[#1c212d] font-mono">
+                <Clock className="w-3.5 h-3.5 text-zinc-500" strokeWidth={1.5} />
+                <span className="text-zinc-300 font-semibold">{activeReadout.time}</span>
+                <span className="text-zinc-600">|</span>
+                <span className="text-rose-400 font-bold">{activeReadout.tempWound}°C</span>
+                <span className="text-zinc-600">|</span>
+                <span className="text-cyan-400">ΔT +{activeReadout.delta || (activeReadout.tempWound - activeReadout.tempBody).toFixed(1)}°C</span>
+                <span className="text-zinc-600">|</span>
+                <span className="text-teal-400">{activeReadout.humidity}% вл.</span>
+              </div>
+            </div>
+
+            {/* Interactive SVG Canvas */}
+            <div className="relative w-full overflow-x-auto py-1">
+              <svg
+                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                className="w-full h-auto min-w-[580px] text-xs select-none cursor-crosshair"
+                onMouseMove={handleChartMouseMove}
+                onMouseLeave={handleChartMouseLeave}
+              >
+                <defs>
+                  {/* Subtle Apple Health linear gradient for wound curve fill */}
+                  <linearGradient id="woundAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                {/* Grid horizontal lines */}
+                {[35.0, 36.0, 37.0, 38.0, 39.0, 40.0].map((t) => {
+                  const y = getTempY(t);
                   return (
-                    <tr
-                      key={patient.id}
-                      onClick={() => handleRowClick(patient.id)}
-                      className={`cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-slate-800/80'
-                          : 'hover:bg-slate-800/40 bg-slate-900/60'
-                      }`}
-                    >
-                      {/* Bed info */}
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <div className="font-semibold text-white">{patient.bed}</div>
-                        <div className="text-[11px] text-slate-400">{patient.ward}</div>
-                      </td>
-
-                      {/* Patient Name & Diagnosis */}
-                      <td className="py-3 px-3">
-                        <div className="font-medium text-slate-200 whitespace-nowrap">
-                          {patient.name}
-                        </div>
-                        <div className="text-[11px] text-slate-400 truncate max-w-[180px]" title={patient.diagnosis}>
-                          {patient.diagnosis}
-                        </div>
-                      </td>
-
-                      {/* Bandage age & state */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap">
-                        <span className="font-mono text-slate-300 text-[11px]">{bandageAge}</span>
-                        <div className="text-[10px] text-slate-400 truncate max-w-[90px]">
-                          {patient.humidity >= 80 ? 'Промокла' : patient.humidity >= 65 ? 'Влажная' : 'Сухая'}
-                        </div>
-                      </td>
-
-                      {/* Wound Temp */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap">
-                        <span
-                          className={`font-semibold tabular-nums text-sm ${
-                            patient.tempWound >= 37.5 ? 'text-rose-400 font-bold' : 'text-slate-100'
-                          }`}
-                        >
-                          {patient.tempWound}°C
-                        </span>
-                      </td>
-
-                      {/* Body Temp */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap tabular-nums text-slate-400">
-                        {patient.tempBody}°C
-                      </td>
-
-                      {/* Delta T */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap">
-                        <span
-                          className={`font-mono text-xs tabular-nums ${
-                            patient.tempDiff >= 1.0
-                              ? 'text-rose-400 font-bold'
-                              : patient.tempDiff >= 0.5
-                              ? 'text-amber-400'
-                              : 'text-slate-400'
-                          }`}
-                        >
-                          {patient.tempDiff > 0 ? `+${patient.tempDiff}` : patient.tempDiff}°C
-                        </span>
-                      </td>
-
-                      {/* Humidity */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap">
-                        <span
-                          className={`font-semibold tabular-nums ${
-                            patient.humidity >= 80
-                              ? 'text-rose-400'
-                              : patient.humidity >= 65
-                              ? 'text-amber-400'
-                              : 'text-teal-300'
-                          }`}
-                        >
-                          {patient.humidity}%
-                        </span>
-                      </td>
-
-                      {/* Heart rate */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap tabular-nums text-slate-300">
-                        {patient.heartRate}
-                      </td>
-
-                      {/* Status Badge */}
-                      <td className="py-3 px-3 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                            isAlert
-                              ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                              : isWarning
-                              ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                              : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                          }`}
-                        >
-                          {isAlert ? 'ТРЕВОГА' : isWarning ? 'КОНТРОЛЬ' : 'НОРМА'}
-                        </span>
-                      </td>
-
-                      {/* Action */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleOpenTelemetry(patient.id)}
-                          className="px-2 py-1 rounded bg-slate-800 hover:bg-cyan-900/60 hover:text-cyan-300 text-slate-300 text-xs transition-colors"
-                          title="Открыть детальные графики телеметрии"
-                        >
-                          Телеметрия
-                        </button>
-                      </td>
-                    </tr>
+                    <g key={t}>
+                      <line
+                        x1={padding.left}
+                        y1={y}
+                        x2={chartWidth - padding.right}
+                        y2={y}
+                        stroke="#1c212d"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={padding.left - 8}
+                        y={y + 3}
+                        textAnchor="end"
+                        fill="#52525b"
+                        fontSize="10"
+                        fontFamily="monospace"
+                      >
+                        {t.toFixed(1)}°
+                      </text>
+                    </g>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
-        {/* Right: Instantaneous Bed Detail Drawer / Clinical Inspector */}
-        <div className="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-4">
-          <div className="border-b border-slate-800 pb-3 flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-cyan-400 font-mono">
-                  {activeDetailPatient.sensorId}
-                </span>
-                <span className="text-xs text-slate-400">•</span>
-                <span className="text-xs text-slate-300">
-                  {activeDetailPatient.ward}, {activeDetailPatient.bed}
-                </span>
-              </div>
-              <h2 className="text-base font-bold text-white mt-0.5">
-                {activeDetailPatient.name}
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {activeDetailPatient.diagnosis} ({activeDetailPatient.age} лет)
-              </p>
-            </div>
+                {/* Baseline body temp threshold line (36.6°C) */}
+                <line
+                  x1={padding.left}
+                  y1={yBaselineBody}
+                  x2={chartWidth - padding.right}
+                  y2={yBaselineBody}
+                  stroke="#06b6d4"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                  opacity="0.5"
+                />
+                <text
+                  x={chartWidth - padding.right}
+                  y={yBaselineBody - 5}
+                  textAnchor="end"
+                  fill="#06b6d4"
+                  fontSize="9"
+                  fontFamily="sans-serif"
+                >
+                  Базовая норма 36.6°C
+                </text>
 
-            <span
-              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                activeDetailPatient.status === 'alert'
-                  ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                  : activeDetailPatient.status === 'warning'
-                  ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                  : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-              }`}
-            >
-              {activeDetailPatient.status === 'alert'
-                ? 'ТРЕВОГА'
-                : activeDetailPatient.status === 'warning'
-                ? 'КОНТРОЛЬ'
-                : 'НОРМА'}
-            </span>
-          </div>
+                {/* Hyperthermia threshold alarm line (37.5°C) */}
+                <line
+                  x1={padding.left}
+                  y1={yThresholdAlarm}
+                  x2={chartWidth - padding.right}
+                  y2={yThresholdAlarm}
+                  stroke="#f43f5e"
+                  strokeWidth="1.2"
+                  strokeDasharray="4 3"
+                />
+                <text
+                  x={chartWidth - padding.right}
+                  y={yThresholdAlarm - 5}
+                  textAnchor="end"
+                  fill="#f43f5e"
+                  fontSize="9"
+                  fontWeight="bold"
+                  fontFamily="sans-serif"
+                >
+                  Порог гипертермии 37.5°C
+                </text>
 
-          {/* Alert Callout if present */}
-          {activeDetailPatient.alertDetails && (
-            <div className="p-3 rounded bg-rose-950/40 border border-rose-900/80 text-xs text-rose-200">
-              <div className="font-semibold flex items-center gap-1.5 text-rose-300 mb-1">
-                <AlertTriangle className="w-3.5 h-3.5" strokeWidth={2} />
-                Диагностическое оповещение HealthBand
-              </div>
-              <p className="text-[11px] leading-relaxed">{activeDetailPatient.alertDetails}</p>
-            </div>
-          )}
+                {/* Wound Area Glow */}
+                <path d={woundAreaPath} fill="url(#woundAreaGradient)" />
 
-          {/* Vitals Matrix */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="p-2.5 rounded bg-slate-950 border border-slate-800">
-              <span className="text-slate-400 text-[11px] flex items-center justify-between">
-                <span>Т раны</span>
-                <Thermometer className="w-3.5 h-3.5 text-rose-400" strokeWidth={2} />
-              </span>
-              <div className="text-lg font-bold text-white mt-1 tabular-nums">
-                {activeDetailPatient.tempWound}°C
-              </div>
-              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                Порог: 37.5°C
-              </div>
-            </div>
+                {/* Body Temp Curve */}
+                <path
+                  d={bodyPath}
+                  fill="none"
+                  stroke="#06b6d4"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="0.8"
+                />
 
-            <div className="p-2.5 rounded bg-slate-950 border border-slate-800">
-              <span className="text-slate-400 text-[11px] flex items-center justify-between">
-                <span>Градиент ΔT</span>
-                <span className="font-mono text-[10px] text-slate-500">Т_тела {activeDetailPatient.tempBody}°C</span>
-              </span>
-              <div className={`text-lg font-bold mt-1 tabular-nums font-mono ${
-                activeDetailPatient.tempDiff >= 1.0 ? 'text-rose-400' : 'text-slate-200'
-              }`}>
-                {activeDetailPatient.tempDiff > 0 ? `+${activeDetailPatient.tempDiff}` : activeDetailPatient.tempDiff}°C
-              </div>
-              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                Порог: &ge; +1.0°C
-              </div>
-            </div>
+                {/* Wound Temp Curve */}
+                <path
+                  d={woundPath}
+                  fill="none"
+                  stroke="#f43f5e"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
 
-            <div className="p-2.5 rounded bg-slate-950 border border-slate-800">
-              <span className="text-slate-400 text-[11px] flex items-center justify-between">
-                <span>Влажность</span>
-                <Droplets className="w-3.5 h-3.5 text-teal-400" strokeWidth={2} />
-              </span>
-              <div className={`text-lg font-bold mt-1 tabular-nums ${
-                activeDetailPatient.humidity >= 80 ? 'text-rose-400' : 'text-white'
-              }`}>
-                {activeDetailPatient.humidity}%
-              </div>
-              <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-                {activeDetailPatient.bandageStatus}
-              </div>
-            </div>
+                {/* Nodes on Wound Temp Curve */}
+                {historySeries.map((d, i) => {
+                  const x = getX(i);
+                  const yWound = getTempY(d.tempWound);
+                  const isHovered = hoveredDataPoint && hoveredDataPoint.idx === i;
+                  const isHigh = d.tempWound >= 37.5;
 
-            <div className="p-2.5 rounded bg-slate-950 border border-slate-800">
-              <span className="text-slate-400 text-[11px] flex items-center justify-between">
-                <span>Пульс</span>
-                <Heart className="w-3.5 h-3.5 text-rose-500" strokeWidth={2} />
-              </span>
-              <div className="text-lg font-bold text-white mt-1 tabular-nums">
-                {activeDetailPatient.heartRate}{' '}
-                <span className="text-xs font-normal text-slate-400">уд/м</span>
-              </div>
-              <div className="text-[10px] text-slate-400 mt-0.5">
-                MAX30102 PPG
-              </div>
-            </div>
-          </div>
+                  return (
+                    <g key={i}>
+                      <circle
+                        cx={x}
+                        cy={yWound}
+                        r={isHovered ? 5.5 : isHigh ? 4 : 3}
+                        fill={isHigh ? '#f43f5e' : '#38bdf8'}
+                        stroke="#0d1017"
+                        strokeWidth={isHovered ? 2.5 : 1.5}
+                      />
+                      {/* X-axis time label */}
+                      <text
+                        x={x}
+                        y={chartHeight - padding.bottom + 16}
+                        textAnchor="middle"
+                        fill="#71717a"
+                        fontSize="10"
+                        fontFamily="monospace"
+                      >
+                        {d.time}
+                      </text>
+                    </g>
+                  );
+                })}
 
-          {/* Sensor Hardware Health */}
-          <div className="p-2.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-400 space-y-1">
-            <div className="flex items-center justify-between">
-              <span>Питание сенсора:</span>
-              <span className="text-slate-200 font-mono flex items-center gap-1">
-                <Battery className="w-3 h-3 text-emerald-400" strokeWidth={2} />
-                {activeDetailPatient.battery}% (Li-Po 3.7V)
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Режим энергосбережения:</span>
-              <span className="text-slate-200">Deep Sleep 95% (Wake 12 с)</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>MAC-адрес модуля:</span>
-              <span className="font-mono text-cyan-400 text-[10px]">
-                {activeDetailPatient.mac || '4C:11:AE:0D:98:21'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Синхронизация:</span>
-              <span className="text-slate-300 font-mono text-[10px]">
-                {activeDetailPatient.lastUpdate}
-              </span>
+                {/* Apple Health Hairline Vertical Scrubber */}
+                {hoveredDataPoint && (
+                  <g className="chart-scrubber-line">
+                    <line
+                      x1={hoveredDataPoint.x}
+                      y1={padding.top}
+                      x2={hoveredDataPoint.x}
+                      y2={chartHeight - padding.bottom}
+                      stroke="#38bdf8"
+                      strokeWidth="1"
+                      strokeDasharray="2 2"
+                    />
+                    {/* Ring highlight on wound node */}
+                    <circle
+                      cx={hoveredDataPoint.x}
+                      cy={hoveredDataPoint.yWound}
+                      r="7"
+                      fill="none"
+                      stroke="#f43f5e"
+                      strokeWidth="2"
+                    />
+                  </g>
+                )}
+              </svg>
             </div>
           </div>
 
-          {/* Quick Triage Buttons */}
-          <div className="space-y-2 pt-1">
-            <button
-              onClick={() => handleOpenTelemetry(activeDetailPatient.id)}
-              className="w-full py-2 px-3 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
-            >
-              <span>Открыть полный поток телеметрии</span>
-              <ArrowUpRight className="w-3.5 h-3.5" strokeWidth={2} />
-            </button>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => handleAcceptAlarm(activeDetailPatient.name)}
-                className="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors"
+          {/* Algorithm Status Card: 3-Cycle Dynamic Verification */}
+          <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-[#1c212d]">
+              <div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-cyan-400" strokeWidth={2} />
+                  <span>3-Точечная верификация алгоритма HealthBand</span>
+                </h3>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Исключение ложных тревог: нагрев одеялом исключается при синхронном росте Т тела
+                </p>
+              </div>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  activePatient.status === 'alert'
+                    ? 'bg-rose-950/80 text-rose-300 border border-rose-800'
+                    : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
+                }`}
               >
-                Принять вызов
-              </button>
-              <button
-                onClick={() => handleChangeBandage(activeDetailPatient.name)}
-                className="py-1.5 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors"
+                {activePatient.status === 'alert' ? '3/3 ПОДТВЕРЖДЕНО' : 'ГОМЕОСТАЗ'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
+              {/* Step 1 */}
+              <div className="bg-[#090a0f] p-3 rounded-lg border border-[#1c212d] space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-zinc-200">1. Первичная девиация</span>
+                  <span className="font-mono text-zinc-500 text-[10px]">{p1.time}</span>
+                </div>
+                <div className="text-[11px] font-mono text-zinc-400">
+                  Т раны: <span className="text-white font-bold">{p1.tempWound}°C</span> • ΔT: +{(p1.tempWound - p1.tempBody).toFixed(1)}°
+                </div>
+                <p className="text-[10px] text-zinc-500 leading-tight pt-1">
+                  Начало температурного отклонения. Зуммер заблокирован для накопления выборки.
+                </p>
+              </div>
+
+              {/* Step 2 */}
+              <div className="bg-[#090a0f] p-3 rounded-lg border border-[#1c212d] space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-zinc-200">2. Фильтр артефакта</span>
+                  <span className="font-mono text-zinc-500 text-[10px]">{p2.time}</span>
+                </div>
+                <div className="text-[11px] font-mono text-zinc-400">
+                  Т раны: <span className="text-white font-bold">{p2.tempWound}°C</span> • ΔT: +{(p2.tempWound - p2.tempBody).toFixed(1)}°
+                </div>
+                <p className="text-[10px] text-zinc-500 leading-tight pt-1">
+                  Проверка одеяла: ΔT &gt; 1.0°C подтверждает локальный очаг, а не прогрев тела.
+                </p>
+              </div>
+
+              {/* Step 3 */}
+              <div
+                className={`p-3 rounded-lg border space-y-1 ${
+                  activePatient.status === 'alert'
+                    ? 'bg-rose-950/20 border-rose-800/80'
+                    : 'bg-[#090a0f] border-[#1c212d]'
+                }`}
               >
-                Сменить повязку
-              </button>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-zinc-200">3. Решение триажа</span>
+                  <span className="font-mono text-zinc-500 text-[10px]">{p3.time}</span>
+                </div>
+                <div className="text-[11px] font-mono text-zinc-400">
+                  Т раны: <span className="text-white font-bold">{p3.tempWound}°C</span> • ΔT: +{(p3.tempWound - p3.tempBody).toFixed(1)}°
+                </div>
+                <p className="text-[10px] text-zinc-500 leading-tight pt-1">
+                  {activePatient.status === 'alert'
+                    ? 'Стойкий тренд 3 цикла. Активирован вызов дежурной медсестры.'
+                    : 'Гомеостаз стабилен. Бактериального воспаления не выявлено.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Linear-Style Chronological Event Timeline */}
+          <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-4 space-y-3">
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-[#1c212d]">
+              <Clock className="w-3.5 h-3.5 text-zinc-400" strokeWidth={2} />
+              <span>Хронологический журнал событий (Linear Timeline)</span>
+            </h3>
+
+            <div className="space-y-3 relative before:absolute before:inset-0 before:left-3 before:w-0.5 before:bg-[#1c212d]">
+              {/* Event 1 */}
+              <div className="relative flex items-start gap-3.5 pl-1">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border z-10 ${
+                  activePatient.status === 'alert'
+                    ? 'bg-rose-950 border-rose-600 text-rose-400'
+                    : 'bg-emerald-950 border-emerald-600 text-emerald-400'
+                }`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                </div>
+                <div className="min-w-0 flex-1 bg-[#090a0f] p-2.5 rounded-lg border border-[#1c212d] text-xs">
+                  <div className="flex items-center justify-between text-zinc-400 text-[11px]">
+                    <span className="font-semibold text-white">
+                      {activePatient.status === 'alert' ? 'Критическая тревога HealthBand' : 'Штатный замер телеметрии'}
+                    </span>
+                    <span className="font-mono">22:15</span>
+                  </div>
+                  <p className="text-zinc-400 text-[11px] mt-0.5">
+                    {activePatient.status === 'alert'
+                      ? `Зафиксирован стойкий рост Т раны до ${activePatient.tempWound}°C с насыщением экссудатом ${activePatient.humidity}%. Рекомендован осмотр.`
+                      : 'Все параметры находятся в целевом терапевтическом коридоре.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Event 2 */}
+              <div className="relative flex items-start gap-3.5 pl-1">
+                <div className="w-5 h-5 rounded-full bg-zinc-900 border border-zinc-700 text-zinc-400 flex items-center justify-center shrink-0 z-10">
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
+                </div>
+                <div className="min-w-0 flex-1 bg-[#090a0f] p-2.5 rounded-lg border border-[#1c212d] text-xs">
+                  <div className="flex items-center justify-between text-zinc-400 text-[11px]">
+                    <span className="font-semibold text-white">Верификация алгоритма (2/3)</span>
+                    <span className="font-mono">22:00</span>
+                  </div>
+                  <p className="text-zinc-400 text-[11px] mt-0.5">
+                    Подтвержден градиент ΔT +1.1°C относительно опорного сенсора интактной кожи.
+                  </p>
+                </div>
+              </div>
+
+              {/* Event 3 */}
+              <div className="relative flex items-start gap-3.5 pl-1">
+                <div className="w-5 h-5 rounded-full bg-zinc-900 border border-zinc-700 text-zinc-400 flex items-center justify-center shrink-0 z-10">
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
+                </div>
+                <div className="min-w-0 flex-1 bg-[#090a0f] p-2.5 rounded-lg border border-[#1c212d] text-xs">
+                  <div className="flex items-center justify-between text-zinc-400 text-[11px]">
+                    <span className="font-semibold text-white">Плановая смена повязки</span>
+                    <span className="font-mono">18:00</span>
+                  </div>
+                  <p className="text-zinc-400 text-[11px] mt-0.5">
+                    Наложена свежая антибактериальная сорбирующая повязка со стерильным шлейфом HealthBand.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

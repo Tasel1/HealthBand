@@ -7,6 +7,15 @@ export default {
   theme: {
     extend: {
       colors: {
+        obsidian: {
+          950: '#090a0f',
+          900: '#0d1017',
+          850: '#11141d',
+          800: '#161b26',
+          750: '#1c2230',
+          border: '#1c212d',
+          'border-light': '#272f3f',
+        },
         clinical: {
           bg: '#0b1120',
           dark: '#0f172a',

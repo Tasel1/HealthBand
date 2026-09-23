@@ -10,7 +10,11 @@ import {
   Share2,
   Cpu,
   Activity,
-  Check
+  Check,
+  ShieldAlert,
+  Flame,
+  Droplets,
+  Layers
 } from 'lucide-react';
 import { useHealthBand, SIMULATOR_PRESETS } from '../context/HealthBandContext.jsx';
 
@@ -75,31 +79,29 @@ export default function SimulatorView() {
     }, 2500);
   };
 
-  // Approximate physical ADC values for Hardware Testbench inspector
-  // NTC Thermistor B=3950, R25=10000 Ohm, Voltage divider with 10k resistor, 10-bit ADC
+  // Hardware ADC calculations
   const rThermistor = Math.round(10000 * Math.exp(3950 * (1 / (tempWound + 273.15) - 1 / 298.15)));
   const adcThermistor = Math.round((rThermistor / (rThermistor + 10000)) * 1023);
 
-  // Conductometric moisture textile sensor: 1024 (dry) -> ~500 (saturated)
   const adcMoisture = Math.max(480, Math.min(1024, Math.round(1024 - (humidity / 100) * 544)));
   const voltMoisture = ((adcMoisture / 1023) * 3.3).toFixed(2);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Testbench Header */}
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+      <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-semibold text-white">
-                Аппаратно-программный испытательный стенд (Testbench & Calibration Lab)
+                Аппаратно-программный испытательный стенд (Demo Lab & Testbench)
               </span>
-              <span className="text-slate-500">•</span>
-              <span className="text-xs text-slate-400">
+              <span className="text-zinc-600">•</span>
+              <span className="text-xs text-zinc-400">
                 Стресс-тестирование алгоритмов фильтрации артефактов
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1 max-w-3xl">
+            <p className="text-xs text-zinc-400 mt-1 max-w-3xl">
               Интерактивная верификация для экспертной комиссии: динамическое моделирование сигналов термометрии, кондуктометрии и фотоплетизмографии с мгновенной трансляцией во все разделы терминала.
             </p>
           </div>
@@ -108,13 +110,13 @@ export default function SimulatorView() {
             {mode !== 'simulator' ? (
               <button
                 onClick={() => setMode('simulator')}
-                className="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-xs"
               >
                 <FlaskConical className="w-3.5 h-3.5" strokeWidth={2} />
-                <span>Активировать симулятор</span>
+                <span>Активировать стенд</span>
               </button>
             ) : (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-950 border border-emerald-800/60 text-emerald-400 text-xs">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#090a0f] border border-emerald-800/60 text-emerald-400 text-xs font-mono">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
                 <span>Синхронизировано с постом</span>
               </div>
@@ -122,10 +124,10 @@ export default function SimulatorView() {
 
             <button
               onClick={handleTriggerTestAlarm}
-              className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors flex items-center gap-1.5 ${
                 testTriggerActive
                   ? 'bg-rose-950 border-rose-600 text-rose-200'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  : 'bg-[#161b26] hover:bg-[#1c2230] text-zinc-200 border-[#1c212d]'
               }`}
               title="Проверка работы зуммера оповещения медсестры"
             >
@@ -136,22 +138,22 @@ export default function SimulatorView() {
         </div>
       </div>
 
-      {/* Clinical Scenario Selector (Segmented Console) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-3">
-        <div className="text-xs text-slate-400 font-semibold mb-2.5">
+      {/* Clinical Scenario Selector */}
+      <div className="bg-[#0d1017] border border-[#1c212d] rounded-xl p-3.5">
+        <div className="text-xs text-zinc-400 font-semibold mb-2.5">
           Клинические сценарии для быстрой демонстрации:
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {SIMULATOR_PRESETS.map((preset) => {
             const isSelected = presetId === preset.id;
             return (
               <button
                 key={preset.id}
                 onClick={() => handlePresetSelect(preset.id)}
-                className={`text-left p-3 rounded-md border transition-colors ${
+                className={`text-left p-3 rounded-lg border transition-all ${
                   isSelected
-                    ? 'bg-slate-800 border-cyan-500 text-white'
-                    : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-300'
+                    ? 'bg-[#161b26] border-cyan-500/80 text-white shadow-xs'
+                    : 'bg-[#090a0f] border-[#1c212d] hover:border-zinc-700 text-zinc-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -164,10 +166,10 @@ export default function SimulatorView() {
                     }`}
                   ></span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-tight">
+                <p className="text-[11px] text-zinc-400 mt-1 line-clamp-2 leading-tight">
                   {preset.desc}
                 </p>
-                <div className="mt-2 text-[10px] font-mono text-cyan-400 flex items-center gap-1.5">
+                <div className="mt-2 text-[10px] font-mono text-cyan-400 flex items-center gap-1.5 pt-1 border-t border-[#1c212d]/60">
                   <span>Т: {preset.tempWound}°C</span>
                   <span>•</span>
                   <span>Вл: {preset.humidity}%</span>
@@ -181,17 +183,17 @@ export default function SimulatorView() {
       </div>
 
       {/* Hardware Calibration Sliders & Live ADC Telemetry Inspector */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left: Tactile Calibration Sliders (6 cols) */}
-        <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-4">
-          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 text-xs">
+        <div className="lg:col-span-6 bg-[#0d1017] border border-[#1c212d] rounded-xl p-4 space-y-4">
+          <div className="flex items-center justify-between pb-2.5 border-b border-[#1c212d] text-xs">
             <span className="font-semibold text-white flex items-center gap-2">
               <Sliders className="w-4 h-4 text-cyan-400" strokeWidth={2} />
-              Калибровка входных физических параметров
+              <span>Калибровка физических параметров сенсоров</span>
             </span>
             <button
               onClick={() => handlePresetSelect('infection')}
-              className="text-slate-400 hover:text-white flex items-center gap-1 text-[11px]"
+              className="text-zinc-400 hover:text-white flex items-center gap-1 text-[11px]"
             >
               <RotateCcw className="w-3 h-3" strokeWidth={2} /> Сбросить
             </button>
@@ -200,7 +202,7 @@ export default function SimulatorView() {
           {/* Slider 1: Wound Temperature */}
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs">
-              <span className="text-slate-300">Температура раневого ложа (под повязкой):</span>
+              <span className="text-zinc-300">Температура раневого ложа (под повязкой):</span>
               <span className="font-mono font-bold text-white tabular-nums">{tempWound}°C</span>
             </div>
             <input
@@ -210,11 +212,11 @@ export default function SimulatorView() {
               step="0.1"
               value={tempWound}
               onChange={(e) => handleSliderChange('tempWound', parseFloat(e.target.value))}
-              className="w-full accent-cyan-500 bg-slate-950 h-2 rounded cursor-pointer"
+              className="w-full accent-cyan-500 bg-[#090a0f] h-2 rounded cursor-pointer"
             />
-            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+            <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
               <span>35.0°C</span>
-              <span className="text-rose-400">Порог тревоги 37.5°C</span>
+              <span className="text-rose-400 font-medium">Порог тревоги 37.5°C</span>
               <span>41.0°C</span>
             </div>
           </div>
@@ -222,7 +224,7 @@ export default function SimulatorView() {
           {/* Slider 2: Body Temperature */}
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs">
-              <span className="text-slate-300">Базовая температура тела (опорный сенсор):</span>
+              <span className="text-zinc-300">Базовая температура тела (опорный сенсор):</span>
               <span className="font-mono font-bold text-white tabular-nums">{tempBody}°C</span>
             </div>
             <input
@@ -232,9 +234,9 @@ export default function SimulatorView() {
               step="0.1"
               value={tempBody}
               onChange={(e) => handleSliderChange('tempBody', parseFloat(e.target.value))}
-              className="w-full accent-cyan-500 bg-slate-950 h-2 rounded cursor-pointer"
+              className="w-full accent-cyan-500 bg-[#090a0f] h-2 rounded cursor-pointer"
             />
-            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+            <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
               <span>35.5°C</span>
               <span>Физиологическая норма 36.6°C</span>
               <span>39.5°C</span>
@@ -244,7 +246,7 @@ export default function SimulatorView() {
           {/* Slider 3: Wound Humidity */}
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs">
-              <span className="text-slate-300">Влажность повязки (насыщение экссудатом):</span>
+              <span className="text-zinc-300">Влажность повязки (насыщение экссудатом):</span>
               <span className="font-mono font-bold text-white tabular-nums">{humidity}%</span>
             </div>
             <input
@@ -254,11 +256,11 @@ export default function SimulatorView() {
               step="1"
               value={humidity}
               onChange={(e) => handleSliderChange('humidity', parseInt(e.target.value, 10))}
-              className="w-full accent-teal-500 bg-slate-950 h-2 rounded cursor-pointer"
+              className="w-full accent-teal-500 bg-[#090a0f] h-2 rounded cursor-pointer"
             />
-            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+            <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
               <span>10% (Сухая)</span>
-              <span className="text-amber-400">Порог замены 80%</span>
+              <span className="text-amber-400 font-medium">Порог замены 80%</span>
               <span>100% (Насыщение)</span>
             </div>
           </div>
@@ -266,7 +268,7 @@ export default function SimulatorView() {
           {/* Stepper: Consecutive Spikes */}
           <div className="space-y-1.5 pt-1">
             <div className="flex justify-between text-xs">
-              <span className="text-slate-300">Число последовательных циклов роста Т:</span>
+              <span className="text-zinc-300">Число последовательных циклов роста Т:</span>
               <span className="font-mono font-bold text-cyan-400">{consecutiveSpikes} из 3 циклов</span>
             </div>
             <div className="grid grid-cols-4 gap-2">
@@ -274,10 +276,10 @@ export default function SimulatorView() {
                 <button
                   key={val}
                   onClick={() => handleSliderChange('consecutiveSpikes', val)}
-                  className={`py-1.5 text-xs font-mono rounded border transition-colors ${
+                  className={`py-1.5 text-xs font-mono rounded-md border transition-colors ${
                     consecutiveSpikes === val
-                      ? 'bg-slate-800 text-cyan-300 border-cyan-500 font-semibold'
-                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                      ? 'bg-[#161b26] text-cyan-300 border-cyan-500 font-semibold'
+                      : 'bg-[#090a0f] text-zinc-400 border-[#1c212d] hover:text-white'
                   }`}
                 >
                   {val === 3 ? '3 (Тревога)' : `${val} цикл`}
@@ -288,18 +290,18 @@ export default function SimulatorView() {
         </div>
 
         {/* Right: Live Telemetry Inspector & Decision Tree (6 cols) */}
-        <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-4">
-          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 text-xs">
+        <div className="lg:col-span-6 bg-[#0d1017] border border-[#1c212d] rounded-xl p-4 space-y-4">
+          <div className="flex items-center justify-between pb-2.5 border-b border-[#1c212d] text-xs">
             <span className="font-semibold text-white flex items-center gap-2">
               <Cpu className="w-4 h-4 text-cyan-400" strokeWidth={2} />
-              Аппаратный инспектор ADC & Матрица решений
+              <span>Аппаратный инспектор ADC & Матрица решений</span>
             </span>
-            <span className="font-mono text-[10px] text-slate-400">ESP32 Firmware Pipeline</span>
+            <span className="font-mono text-[10px] text-zinc-400">ESP32 Firmware Pipeline</span>
           </div>
 
           {/* Decision Verdict Banner */}
           <div
-            className={`p-3.5 rounded border flex items-start gap-3 ${
+            className={`p-3.5 rounded-lg border flex items-start gap-3 ${
               hasAnyAlarm
                 ? 'bg-rose-950/40 border-rose-800 text-rose-200'
                 : isWarning
@@ -317,10 +319,10 @@ export default function SimulatorView() {
             <div>
               <div className="font-bold text-xs uppercase tracking-wide">
                 {hasAnyAlarm
-                  ? 'СИГНАЛ ТРЕВОГИ: ОСТРАЯ ЛОКАЛЬНАЯ РАНЕВАЯ ИНФЕКЦИЯ'
+                  ? 'СИГНАЛ ТРЕВОГИ: ОСТРАЯ РАНЕВАЯ ИНФЕКЦИЯ'
                   : isWarning
                   ? 'ВНИМАНИЕ: ПОГРАНИЧНЫЕ ПОКАЗАТЕЛИ'
-                  : 'СТАТУС: ФИЗИОЛОГИЧЕСКИЙ ГОМЕОСТАЗ В НОРМЕ'}
+                  : 'СТАТУС: ФИЗИОЛОГИЧЕСКИЙ ГОМЕОСТАЗ'}
               </div>
               <p className="text-xs mt-0.5 leading-relaxed opacity-90">
                 {alertDetails || 'Температурный градиент и влажность находятся в целевом диапазоне заживления.'}
@@ -329,59 +331,59 @@ export default function SimulatorView() {
           </div>
 
           {/* Raw ADC to Medical Units Inspector Table */}
-          <div className="bg-slate-950 border border-slate-800 rounded p-3 text-xs space-y-2">
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+          <div className="bg-[#090a0f] border border-[#1c212d] rounded-lg p-3 text-xs space-y-2">
+            <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
               Трансляция сигналов АЦП в медицинские единицы:
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-              <div className="p-2 rounded bg-slate-900 border border-slate-800/80">
-                <span className="text-slate-400 block text-[10px]">ADC A0 (NTC 10K Рана)</span>
-                <span className="text-slate-200">ADC: {adcThermistor} ({rThermistor} Ω)</span>
-                <span className="text-cyan-400 block font-bold mt-0.5">{tempWound}°C (Медицинская)</span>
+              <div className="p-2 rounded bg-[#0d1017] border border-[#1c212d]">
+                <span className="text-zinc-500 block text-[10px]">ADC A0 (NTC 10K Рана)</span>
+                <span className="text-zinc-300">ADC: {adcThermistor} ({rThermistor} Ω)</span>
+                <span className="text-cyan-400 block font-bold mt-0.5">{tempWound}°C</span>
               </div>
 
-              <div className="p-2 rounded bg-slate-900 border border-slate-800/80">
-                <span className="text-slate-400 block text-[10px]">ADC A1 (Текстиль Влажность)</span>
-                <span className="text-slate-200">ADC: {adcMoisture} ({voltMoisture} V)</span>
-                <span className="text-teal-400 block font-bold mt-0.5">{humidity}% RH (Экссудат)</span>
+              <div className="p-2 rounded bg-[#0d1017] border border-[#1c212d]">
+                <span className="text-zinc-500 block text-[10px]">ADC A1 (Текстиль Влажность)</span>
+                <span className="text-zinc-300">ADC: {adcMoisture} ({voltMoisture} V)</span>
+                <span className="text-teal-400 block font-bold mt-0.5">{humidity}% RH</span>
               </div>
             </div>
           </div>
 
           {/* Decision Criteria Checklist */}
           <div className="space-y-1.5 text-xs">
-            <div className="flex items-center justify-between p-2 rounded bg-slate-950 border border-slate-800">
-              <span className="text-slate-300">1. Т раны &gt; 37.5°C ({tempWound}°C):</span>
-              <span className={`font-mono font-bold ${isHighTemp ? 'text-rose-400' : 'text-slate-500'}`}>
+            <div className="flex items-center justify-between p-2 rounded bg-[#090a0f] border border-[#1c212d]">
+              <span className="text-zinc-300">1. Т раны &gt; 37.5°C ({tempWound}°C):</span>
+              <span className={`font-mono font-bold ${isHighTemp ? 'text-rose-400' : 'text-zinc-500'}`}>
                 {isHighTemp ? 'ВЫПОЛНЕНО (Гипертермия)' : 'НЕТ'}
               </span>
             </div>
 
-            <div className="flex items-center justify-between p-2 rounded bg-slate-950 border border-slate-800">
-              <span className="text-slate-300">2. Градиент Δ(Т_раны - Т_тела) &ge; +1.0°C (+{deltaT}°C):</span>
-              <span className={`font-mono font-bold ${isHighDelta ? 'text-rose-400' : 'text-slate-500'}`}>
+            <div className="flex items-center justify-between p-2 rounded bg-[#090a0f] border border-[#1c212d]">
+              <span className="text-zinc-300">2. Градиент ΔT &ge; +1.0°C (+{deltaT}°C):</span>
+              <span className={`font-mono font-bold ${isHighDelta ? 'text-rose-400' : 'text-zinc-500'}`}>
                 {isHighDelta ? 'ВЫПОЛНЕНО (Локальный очаг)' : 'НЕТ'}
               </span>
             </div>
 
-            <div className="flex items-center justify-between p-2 rounded bg-slate-950 border border-slate-800">
-              <span className="text-slate-300">3. Подтверждение 3 последовательных циклов ({consecutiveSpikes}/3):</span>
-              <span className={`font-mono font-bold ${isTrendConfirmed ? 'text-rose-400' : 'text-slate-500'}`}>
-                {isTrendConfirmed ? 'ВЫПОЛНЕНО (Стойкий тренд)' : 'НЕТ (Фильтрация шума)'}
+            <div className="flex items-center justify-between p-2 rounded bg-[#090a0f] border border-[#1c212d]">
+              <span className="text-zinc-300">3. Подтверждение 3 циклов ({consecutiveSpikes}/3):</span>
+              <span className={`font-mono font-bold ${isTrendConfirmed ? 'text-rose-400' : 'text-zinc-500'}`}>
+                {isTrendConfirmed ? 'ВЫПОЛНЕНО (Стойкий тренд)' : 'НЕТ (Фильтрация)'}
               </span>
             </div>
 
-            <div className="flex items-center justify-between p-2 rounded bg-slate-950 border border-slate-800">
-              <span className="text-slate-300">4. Намокание повязки &ge; 80% ({humidity}%):</span>
-              <span className={`font-mono font-bold ${isMoisture ? 'text-amber-400' : 'text-slate-500'}`}>
-                {isMoisture ? 'ВЫПОЛНЕНО (Требуется замена)' : 'НЕТ'}
+            <div className="flex items-center justify-between p-2 rounded bg-[#090a0f] border border-[#1c212d]">
+              <span className="text-zinc-300">4. Намокание повязки &ge; 80% ({humidity}%):</span>
+              <span className={`font-mono font-bold ${isMoisture ? 'text-amber-400' : 'text-zinc-500'}`}>
+                {isMoisture ? 'ВЫПОЛНЕНО (Замена повязки)' : 'НЕТ'}
               </span>
             </div>
           </div>
 
-          <div className="p-2.5 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
-            <span className="text-cyan-400 font-semibold">Пояснение для жюри:</span> {explanation}
+          <div className="p-2.5 rounded bg-[#090a0f] border border-[#1c212d] text-[11px] text-zinc-400">
+            <span className="text-cyan-400 font-semibold">Пояснение:</span> {explanation}
           </div>
         </div>
       </div>

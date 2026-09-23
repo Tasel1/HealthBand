@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-200;
+    @apply bg-[#090a0f] text-zinc-100 font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-200;
   }
 
   /* Accessible high-contrast focus indicators */
@@ -14,28 +14,43 @@
   }
 }
 
-/* Clinical Workstation Scrollbars */
+/* Linear / Vercel Ultra-Thin Clinical Scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #090a0f;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #1c212d;
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #272f3f;
 }
 
 /* Precision tabular numerals for medical metrics & telemetry streams */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Linear Hairline utility */
+.border-hairline {
+  border-color: #1c212d;
+}
+
+.border-hairline-light {
+  border-color: #272f3f;
+}
+
+/* Smooth Apple Health chart interactions */
+.chart-scrubber-line {
+  pointer-events: none;
+  transition: transform 0.05s ease-out;
 }
 
 /* Clean clinical document print styling */
