@@ -4,33 +4,35 @@
 
 @layer base {
   body {
-    @apply bg-[#090a0f] text-zinc-100 font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-200;
+    @apply bg-[#E8E8ED] text-[#1D1D1F] font-sans antialiased selection:bg-[#007AFF]/20 selection:text-[#007AFF];
+    background-image: radial-gradient(circle at 50% 0%, #F5F5F7 0%, #E8E8ED 100%);
+    min-height: 100vh;
   }
 
-  /* Accessible high-contrast focus indicators */
+  /* Accessible Apple high-contrast focus indicators */
   :focus-visible {
-    outline: 2px solid #06b6d4;
+    outline: 2px solid #007AFF;
     outline-offset: 1px;
   }
 }
 
-/* Linear / Vercel Ultra-Thin Clinical Scrollbars */
+/* macOS Ultra-Smooth Light Scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090a0f;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1c212d;
-  border-radius: 2px;
+  background: #D1D1D6;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #272f3f;
+  background: #AEAEB2;
 }
 
 /* Precision tabular numerals for medical metrics & telemetry streams */
@@ -38,13 +40,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Linear Hairline utility */
+/* Apple Hairline utility */
 .border-hairline {
-  border-color: #1c212d;
+  border-color: #E5E5EA;
 }
 
-.border-hairline-light {
-  border-color: #272f3f;
+.border-hairline-secondary {
+  border-color: #D1D1D6;
 }
 
 /* Smooth Apple Health chart interactions */
@@ -56,13 +58,14 @@
 /* Clean clinical document print styling */
 @media print {
   @page {
-    margin: 12mm 15mm;
+    margin: 10mm 12mm;
     size: A4 portrait;
   }
 
   body {
     background: #ffffff !important;
-    color: #0f172a !important;
+    background-image: none !important;
+    color: #1D1D1F !important;
     font-size: 11pt !important;
   }
 

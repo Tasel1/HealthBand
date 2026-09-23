@@ -17,7 +17,8 @@ import {
   Clock,
   ArrowRight,
   Flame,
-  Check
+  Check,
+  Layers
 } from 'lucide-react';
 import { useHealthBand, SIMULATOR_PRESETS } from '../context/HealthBandContext.jsx';
 import { audioService } from '../services/audioService.js';
@@ -91,8 +92,8 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
       category: 'Навигация',
       title: 'Клинический пост (Матрица коек)',
       subtitle: 'Общий мониторинг пациентов отделения',
-      icon: Activity,
-      shortcut: 'G W',
+      icon: Layers,
+      shortcut: '⌘ 1',
       action: () => {
         setActiveTab('ward');
         setIsOpen(false);
@@ -104,7 +105,7 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
       title: 'Интерактивная телеметрия',
       subtitle: 'Детальные графики датчиков и 3-точечная верификация',
       icon: LineChart,
-      shortcut: 'G T',
+      shortcut: '⌘ 2',
       action: () => {
         setActiveTab('telemetry');
         setIsOpen(false);
@@ -116,7 +117,7 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
       title: 'Demo Lab (Симулятор для жюри)',
       subtitle: 'Стресс-тестирование алгоритмов и калибровка параметров',
       icon: FlaskConical,
-      shortcut: 'G S',
+      shortcut: '⌘ 3',
       action: () => {
         setActiveTab('simulator');
         setIsOpen(false);
@@ -128,7 +129,7 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
       title: 'Клинический протокол (Форма 004/у)',
       subtitle: 'Лист динамического наблюдения за раневым процессом для печати',
       icon: FileText,
-      shortcut: 'G P',
+      shortcut: '⌘ 4',
       action: () => {
         setActiveTab('report');
         setIsOpen(false);
@@ -140,7 +141,7 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
       title: 'Досье комплекса & FAQ',
       subtitle: 'Научно-клиническое обоснование, датчики и сравнение со Стэнфордом',
       icon: Info,
-      shortcut: 'G A',
+      shortcut: '⌘ 5',
       action: () => {
         setActiveTab('about');
         setIsOpen(false);
@@ -292,16 +293,17 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/75 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/30 backdrop-blur-md animate-fade-in"
       onClick={() => setIsOpen(false)}
     >
+      {/* Native macOS Spotlight / Raycast Modal Window */}
       <div
-        className="w-full max-w-2xl bg-[#0d1017] border border-[#1c212d] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+        className="w-full max-w-2xl bg-white/95 border border-[#E5E5EA] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[75vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search Input Bar */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#1c212d] bg-[#090a0f]">
-          <Search className="w-4 h-4 text-zinc-400 shrink-0" strokeWidth={2} />
+        {/* Search Input Bar with Apple Styling */}
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#E5E5EA] bg-white">
+          <Search className="w-5 h-5 text-[#86868B] shrink-0" strokeWidth={2} />
           <input
             ref={inputRef}
             type="text"
@@ -312,26 +314,26 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
             }}
             onKeyDown={handleKeyDown}
             placeholder="Поиск по пациентам, палатам, сценариям или действиям..."
-            className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none"
+            className="w-full bg-transparent text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none"
           />
           {query ? (
             <button
               onClick={() => setQuery('')}
-              className="text-xs text-zinc-500 hover:text-zinc-300 font-mono px-1.5 py-0.5 rounded bg-zinc-800"
+              className="text-xs text-[#86868B] hover:text-[#1D1D1F] font-mono px-2 py-0.5 rounded bg-[#F2F2F7]"
             >
               Очистить
             </button>
           ) : (
-            <kbd className="hidden sm:inline-block text-[10px] text-zinc-500 font-mono bg-zinc-850 px-1.5 py-0.5 rounded border border-zinc-800">
+            <kbd className="hidden sm:inline-block text-[11px] text-[#86868B] font-mono bg-[#F2F2F7] px-2 py-0.5 rounded border border-[#E5E5EA]">
               ESC
             </kbd>
           )}
         </div>
 
         {/* Results List */}
-        <div ref={listRef} className="overflow-y-auto p-2 divide-y divide-zinc-900/50">
+        <div ref={listRef} className="overflow-y-auto p-2 divide-y divide-[#E5E5EA]/40">
           {filteredItems.length === 0 ? (
-            <div className="py-12 text-center text-xs text-zinc-500">
+            <div className="py-12 text-center text-xs text-[#86868B]">
               Ничего не найдено по запросу «{query}»
             </div>
           ) : (
@@ -339,7 +341,7 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
               const catItems = filteredItems.filter((i) => i.category === category);
               return (
                 <div key={category} className="py-1">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 select-none">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#86868B] select-none">
                     {category}
                   </div>
                   <div className="space-y-0.5">
@@ -354,53 +356,63 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
                           key={item.id}
                           onClick={() => item.action()}
                           onMouseEnter={() => setSelectedIndex(thisIndex)}
-                          className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                          className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-colors ${
                             isSelected
-                              ? 'bg-zinc-800/80 text-white'
-                              : 'text-zinc-300 hover:bg-zinc-800/40'
+                              ? 'bg-[#007AFF] text-white shadow-xs'
+                              : 'text-[#1D1D1F] hover:bg-[#F2F2F7]'
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div
-                              className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 border ${
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
                                 isSelected
-                                  ? 'bg-cyan-950/60 border-cyan-800 text-cyan-300'
-                                  : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                                  ? 'bg-white/20 border-white/30 text-white'
+                                  : 'bg-white border-[#E5E5EA] text-[#007AFF] shadow-2xs'
                               }`}
                             >
-                              <Icon className="w-3.5 h-3.5" strokeWidth={2} />
+                              <Icon className="w-4 h-4" strokeWidth={2} />
                             </div>
                             <div className="truncate">
-                              <div className="text-xs font-medium text-zinc-100 flex items-center gap-2">
+                              <div className={`text-xs font-semibold flex items-center gap-2 ${isSelected ? 'text-white' : 'text-[#1D1D1F]'}`}>
                                 <span>{item.title}</span>
                                 {item.badge && (
                                   <span
                                     className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-                                      item.badgeType === 'alert'
-                                        ? 'bg-rose-950/80 text-rose-300 border border-rose-800'
+                                      isSelected
+                                        ? 'bg-white/20 text-white'
+                                        : item.badgeType === 'alert'
+                                        ? 'bg-[#FFEBEA] text-[#D70015] border border-[#FF3B30]/30'
                                         : item.badgeType === 'warning'
-                                        ? 'bg-amber-950/80 text-amber-300 border border-amber-800'
+                                        ? 'bg-[#FFF5E5] text-[#C93400] border border-[#FF9500]/30'
                                         : item.badgeType === 'normal'
-                                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
-                                        : 'bg-zinc-800 text-zinc-400'
+                                        ? 'bg-[#EBF9EE] text-[#248A3D] border border-[#34C759]/30'
+                                        : 'bg-[#F2F2F7] text-[#6E6E73]'
                                     }`}
                                   >
                                     {item.badge}
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[11px] text-zinc-500 truncate">{item.subtitle}</div>
+                              <div className={`text-[11px] truncate ${isSelected ? 'text-white/80' : 'text-[#86868B]'}`}>
+                                {item.subtitle}
+                              </div>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0 ml-3">
                             {item.shortcut && (
-                              <kbd className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                              <kbd
+                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                                  isSelected
+                                    ? 'bg-white/20 text-white border-white/30'
+                                    : 'bg-[#F2F2F7] text-[#86868B] border-[#E5E5EA]'
+                                }`}
+                              >
                                 {item.shortcut}
                               </kbd>
                             )}
                             {isSelected && (
-                              <ArrowRight className="w-3.5 h-3.5 text-cyan-400" strokeWidth={2} />
+                              <ArrowRight className="w-3.5 h-3.5 text-white" strokeWidth={2} />
                             )}
                           </div>
                         </div>
@@ -414,20 +426,20 @@ export default function CommandPalette({ isOpen, setIsOpen, setActiveTab }) {
         </div>
 
         {/* Footer shortcuts hint */}
-        <div className="px-4 py-2 border-t border-[#1c212d] bg-[#090a0f] flex items-center justify-between text-[11px] text-zinc-500">
+        <div className="px-4 py-2.5 border-t border-[#E5E5EA] bg-[#F9F9FB] flex items-center justify-between text-[11px] text-[#86868B]">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <kbd className="font-mono bg-zinc-850 px-1 rounded border border-zinc-800">↑↓</kbd> Навигация
+              <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-[#E5E5EA]">↑↓</kbd> Навигация
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="font-mono bg-zinc-850 px-1 rounded border border-zinc-800">↵</kbd> Выбрать
+              <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-[#E5E5EA]">↵</kbd> Выбрать
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="font-mono bg-zinc-850 px-1 rounded border border-zinc-800">esc</kbd> Закрыть
+              <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-[#E5E5EA]">esc</kbd> Закрыть
             </span>
           </div>
-          <div className="font-mono text-[10px] text-zinc-600">
-            HealthBand Telemetry Command Bar
+          <div className="font-mono text-[10px] text-[#86868B]">
+            Spotlight • HealthBand
           </div>
         </div>
       </div>

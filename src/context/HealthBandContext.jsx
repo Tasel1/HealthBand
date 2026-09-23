@@ -142,6 +142,14 @@ export function HealthBandProvider({ children }) {
   // Sound Alarm Settings
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
 
+  // MacWhisper Bottom Waveform Scrubber & Playback State
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackIndex, setPlaybackIndex] = useState(null); // null = latest point
+  const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, 5x
+
+  // macOS Right Inspector Drawer
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+
   // Live Data State
   const [liveState, setLiveState] = useState({
     isConnected: true,
@@ -481,6 +489,82 @@ export function HealthBandProvider({ children }) {
     });
   }, []);
 
+  // MacWhisper Playback interval runner
+  useEffect(() => {
+    if (!isPlaying) return;
+    const intervalTime = Math.max(400, Math.round(1800 / playbackSpeed));
+    const timer = setInterval(() => {
+      setPlaybackIndex((prev) => {
+        const maxIdx = historySeries.length - 1;
+        const current = prev === null ? maxIdx : prev;
+        if (current >= maxIdx) {
+          return 0; // loop back to start for smooth continuous demonstration
+        }
+        return current + 1;
+      });
+    }, intervalTime);
+    return () => clearInterval(timer);
+  }, [isPlaying, playbackSpeed, historySeries.length]);
+
+  const togglePlay = useCallback(() => {
+    setIsPlaying((prev) => {
+      const next = !prev;
+      if (next) {
+        audioService.unlock();
+        setPlaybackIndex((curr) => {
+          const maxIdx = historySeries.length - 1;
+          if (curr === null || curr >= maxIdx) return 0;
+          return curr;
+        });
+      }
+      return next;
+    });
+  }, [historySeries.length]);
+
+  const stepPlayback = useCallback((delta) => {
+    setIsPlaying(false);
+    setPlaybackIndex((prev) => {
+      const maxIdx = historySeries.length - 1;
+      const current = prev === null ? maxIdx : prev;
+      return Math.max(0, Math.min(maxIdx, current + delta));
+    });
+  }, [historySeries.length]);
+
+  const toggleInspector = useCallback(() => {
+    setInspectorOpen((prev) => !prev);
+  }, []);
+
+  // Compute active scrubbed point and updated patient readout
+  const activeScrubbedPoint =
+    playbackIndex !== null && historySeries[playbackIndex]
+      ? historySeries[playbackIndex]
+      : historySeries[historySeries.length - 1] || null;
+
+  const currentDisplayPatient = activeScrubbedPoint
+    ? {
+        ...activePatient,
+        tempWound: activeScrubbedPoint.tempWound,
+        tempBody: activeScrubbedPoint.tempBody,
+        tempDiff:
+          activeScrubbedPoint.delta !== undefined
+            ? typeof activeScrubbedPoint.delta === 'number'
+              ? activeScrubbedPoint.delta
+              : parseFloat(activeScrubbedPoint.delta)
+            : Number((activeScrubbedPoint.tempWound - activeScrubbedPoint.tempBody).toFixed(1)),
+        humidity: activeScrubbedPoint.humidity,
+        heartRate: activeScrubbedPoint.pulse,
+        status:
+          activeScrubbedPoint.tempWound >= 37.5 &&
+          (activeScrubbedPoint.tempWound - activeScrubbedPoint.tempBody >= 1.0 || activeScrubbedPoint.humidity >= 80)
+            ? 'alert'
+            : activeScrubbedPoint.tempWound >= 37.2 || activeScrubbedPoint.humidity >= 65
+            ? 'warning'
+            : 'normal',
+        statusText: activeScrubbedPoint.note || activePatient.statusText,
+        lastUpdate: activeScrubbedPoint.time
+      }
+    : activePatient;
+
   const value = {
     // Mode
     mode,
@@ -490,6 +574,7 @@ export function HealthBandProvider({ children }) {
     selectedPatientId,
     setSelectedPatientId,
     activePatient,
+    displayPatient: currentDisplayPatient,
     patients,
 
     // Statistics
@@ -514,7 +599,23 @@ export function HealthBandProvider({ children }) {
     isSoundEnabled,
     setIsSoundEnabled,
     toggleSound,
-    playAlarmSound
+    playAlarmSound,
+
+    // MacWhisper Bottom Waveform Scrubber & Playback Player
+    isPlaying,
+    setIsPlaying,
+    togglePlay,
+    playbackIndex,
+    setPlaybackIndex,
+    stepPlayback,
+    playbackSpeed,
+    setPlaybackSpeed,
+    activeScrubbedPoint,
+
+    // macOS Right Inspector Drawer
+    inspectorOpen,
+    setInspectorOpen,
+    toggleInspector
   };
 
   return <HealthBandContext.Provider value={value}>{children}</HealthBandContext.Provider>;
