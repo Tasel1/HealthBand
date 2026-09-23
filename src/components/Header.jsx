@@ -13,7 +13,8 @@ import {
   Layers,
   LineChart,
   FileText,
-  Info
+  Info,
+  Activity
 } from 'lucide-react';
 import { useHealthBand } from '../context/HealthBandContext.jsx';
 
@@ -47,39 +48,16 @@ export default function Header({
 
   return (
     <header className="shrink-0 h-[52px] bg-[#F6F6F9]/95 border-b border-[#E5E5EA] backdrop-blur-md px-3 sm:px-4 flex items-center justify-between gap-3 select-none z-30 print:hidden">
-      {/* Left: macOS Window Traffic Lights & Department Title */}
+      {/* Left: Application Mark & Department Breadcrumb */}
       <div className="flex items-center gap-3 min-w-0">
-        {/* macOS Traffic Lights */}
-        <div className="flex items-center gap-2 group py-1 pr-1">
-          {/* Close */}
-          <div
-            className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E] flex items-center justify-center cursor-pointer shadow-2xs transition-transform active:scale-90"
-            title="Закрыть окно"
-          >
-            <span className="text-[8px] font-bold text-[#4c0000] opacity-0 group-hover:opacity-100 transition-opacity leading-none">
-              ✕
-            </span>
+        {/* Application Brand Mark */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-6 h-6 rounded-md bg-[#007AFF] flex items-center justify-center text-white shadow-2xs">
+            <Activity className="w-3.5 h-3.5" strokeWidth={2.5} />
           </div>
-
-          {/* Minimize */}
-          <div
-            className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123] flex items-center justify-center cursor-pointer shadow-2xs transition-transform active:scale-90"
-            title="Свернуть окно"
-          >
-            <span className="text-[10px] font-bold text-[#5c3c00] opacity-0 group-hover:opacity-100 transition-opacity leading-none -mt-0.5">
-              −
-            </span>
-          </div>
-
-          {/* Zoom */}
-          <div
-            className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29] flex items-center justify-center cursor-pointer shadow-2xs transition-transform active:scale-90"
-            title="Развернуть окно"
-          >
-            <span className="text-[8px] font-bold text-[#004d10] opacity-0 group-hover:opacity-100 transition-opacity leading-none">
-              +
-            </span>
-          </div>
+          <span className="font-semibold text-xs text-[#1D1D1F] tracking-tight">
+            HealthBand
+          </span>
         </div>
 
         {/* Mobile menu toggle */}
@@ -93,7 +71,6 @@ export default function Header({
 
         {/* Minimalist macOS Window Title / Breadcrumb */}
         <div className="hidden xl:flex items-center gap-1.5 text-xs text-[#86868B] font-medium min-w-0">
-          <span className="text-[#1D1D1F] font-semibold truncate">HealthBand</span>
           <span className="text-[#D1D1D6]">/</span>
           <span className="truncate">{displayPatient.ward}</span>
           <span className="text-[#D1D1D6]">/</span>

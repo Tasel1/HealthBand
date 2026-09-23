@@ -8,7 +8,6 @@ import TelemetryView from './components/TelemetryView.jsx';
 import SimulatorView from './components/SimulatorView.jsx';
 import ReportView from './components/ReportView.jsx';
 import AboutView from './components/AboutView.jsx';
-import BottomPlayerBar from './components/BottomPlayerBar.jsx';
 import InspectorDrawer from './components/InspectorDrawer.jsx';
 
 export default function App() {
@@ -76,9 +75,6 @@ export default function App() {
             {/* macOS Right Inspector Drawer */}
             <InspectorDrawer />
           </div>
-
-          {/* MacWhisper Signature Bottom Waveform Scrubber Player */}
-          <BottomPlayerBar />
         </div>
       </div>
     </HealthBandProvider>
